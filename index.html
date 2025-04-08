@@ -1,0 +1,1841 @@
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Week 11: Bayesian Models & Spatial Epidemiology</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <button class="sidebar-toggle" id="sidebar-toggle">Menu</button>
+    
+    <div class="sidebar" id="sidebar">
+        <h3>Course Navigation</h3>
+        <ul>
+            <li class="menu-item">
+                <a href="#week11">📅 Week 11: Bayesian Models & Spatial Epidemiology</a>
+                <ul class="sub-menu">
+                    <li><a href="#bayesian">Bayesian Analysis</a></li>
+                    <li><a href="#spatial-interpolation">Spatial Interpolation</a></li>
+                    <li><a href="#hotspot">Hotspot Analysis</a></li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+    
+    <div class="container">
+        <h1 id="week11">📅 Week 11: Bayesian Models & Spatial Epidemiology</h1>
+        
+        <p>This week, we will:<br>
+        ✅ <strong>Apply Bayesian statistical methods</strong> using the <code>rstanarm</code> package<br>
+        ✅ <strong>Learn spatial interpolation techniques</strong> with <code>kriging</code> (<code>gstat</code> package)<br>
+        ✅ <strong>Conduct hotspot analysis</strong> for malaria using the <code>spdep</code> package</p>
+        
+        <hr>
+        
+        <h2 id="bayesian">1️⃣ Bayesian Analysis for Malaria Modeling</h2>
+        
+        <h3>Why Use Bayesian Methods?</h3>
+        <p>📌 <strong>Bayesian analysis</strong> allows you to incorporate prior knowledge, quantify uncertainty in parameters, and make probabilistic statements about malaria risk and intervention effects.</p>
+        
+        <h3>Step 1: Introduction to Bayesian Thinking</h3>
+        <div class="r-code">
+            <pre><code>
+# Install and load necessary packages
+install.packages(c("rstanarm", "bayesplot", "ggplot2", "dplyr", "tidybayes"))
+library(rstanarm)
+library(bayesplot)
+library(ggplot2)
+library(dplyr)
+library(tidybayes)
+
+# Load malaria dataset
+malaria_data <- read.csv("malaria_data.csv")
+
+# Examine data structure
+str(malaria_data)
+summary(malaria_data)
+
+# Understand Bayesian vs. Frequentist approaches
+# In frequentist statistics, we typically get:
+#  - Point estimates (e.g., coefficient = 2.5)
+#  - Confidence intervals (e.g., 95% CI: 1.8 - 3.2)
+#  - p-values (e.g., p = 0.001)
+
+# In Bayesian statistics, we get:
+#  - Posterior distributions for parameters
+#  - Credible intervals (direct probability statements about parameters)
+#  - Posterior probabilities
+
+# Simple example: Binomial model for malaria prevalence
+# Suppose we surveyed 100 people and found 23 with malaria
+# Frequentist approach would give a point estimate of 23%
+n_surveyed <- 100
+n_positive <- 23
+freq_estimate <- n_positive / n_surveyed
+freq_ci <- binom.test(n_positive, n_surveyed)$conf.int
+
+cat("Frequentist estimate:", freq_estimate, "\n")
+cat("95% Confidence interval:", freq_ci[1], "-", freq_ci[2], "\n")
+
+# Bayesian approach with different priors
+# 1. Non-informative prior (Beta(1,1))
+# 2. Informative prior based on previous studies (e.g., Beta(10,40) for ~20% prevalence)
+
+# Posterior with non-informative prior
+alpha_non_inf <- 1 + n_positive
+beta_non_inf <- 1 + (n_surveyed - n_positive)
+posterior_mean_non_inf <- alpha_non_inf / (alpha_non_inf + beta_non_inf)
+
+# Posterior with informative prior
+alpha_inf <- 10 + n_positive
+beta_inf <- 40 + (n_surveyed - n_positive)
+posterior_mean_inf <- alpha_inf / (alpha_inf + beta_inf)
+
+cat("Bayesian estimate (non-informative prior):", posterior_mean_non_inf, "\n")
+cat("Bayesian estimate (informative prior):", posterior_mean_inf, "\n")
+
+# Plot the posterior distributions
+x <- seq(0, 0.5, length.out = 1000)
+posterior_non_inf <- dbeta(x, alpha_non_inf, beta_non_inf)
+posterior_inf <- dbeta(x, alpha_inf, beta_inf)
+prior_inf <- dbeta(x, 10, 40)
+
+plot_data <- data.frame(
+  x = rep(x, 3),
+  density = c(posterior_non_inf, posterior_inf, prior_inf),
+  Distribution = rep(c("Posterior (Non-inf Prior)", "Posterior (Inf Prior)", "Informative Prior"), 
+                    each = length(x))
+)
+
+ggplot(plot_data, aes(x = x, y = density, color = Distribution)) +
+  geom_line(size = 1) +
+  geom_vline(xintercept = freq_estimate, linetype = "dashed", color = "black") +
+  annotate("text", x = freq_estimate + 0.03, y = max(posterior_non_inf) * 0.8, 
+           label = "Frequentist Estimate", angle = 90) +
+  labs(
+    title = "Posterior Distributions for Malaria Prevalence",
+    subtitle = "Comparing different prior distributions",
+    x = "Prevalence",
+    y = "Density"
+  ) +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set1")
+
+# Calculate 95% credible intervals
+credible_interval_non_inf <- qbeta(c(0.025, 0.975), alpha_non_inf, beta_non_inf)
+credible_interval_inf <- qbeta(c(0.025, 0.975), alpha_inf, beta_inf)
+
+cat("95% Credible interval (non-informative prior):", 
+    credible_interval_non_inf[1], "-", credible_interval_non_inf[2], "\n")
+cat("95% Credible interval (informative prior):", 
+    credible_interval_inf[1], "-", credible_interval_inf[2], "\n")
+            </code></pre>
+        </div>
+        
+        <div class="explanation">
+            <h4>🔍 Explanation:</h4>
+            <p>✔ Bayesian statistics combines prior knowledge with observed data<br>
+            ✔ The result is a posterior distribution that represents our updated belief<br>
+            ✔ Informative priors can improve precision when based on reliable prior knowledge<br>
+            ✔ Credible intervals have a direct probabilistic interpretation<br>
+            ✔ With large sample sizes, Bayesian and frequentist methods often converge</p>
+        </div>
+        
+        <hr>
+        
+        <h3>Step 2: Bayesian Regression Models with rstanarm</h3>
+        <div class="r-code">
+            <pre><code>
+# Prepare data for modeling
+# For this example, we'll model malaria incidence as a function of environmental factors
+
+# Check for missing values and handle them
+missing_values <- colSums(is.na(malaria_data))
+print(missing_values)
+
+# Handle missing values if necessary
+malaria_data <- na.omit(malaria_data)
+
+# Convert categorical variables to factors
+if("region" %in% names(malaria_data)) {
+  malaria_data$region <- as.factor(malaria_data$region)
+}
+
+# Create a binary outcome if needed (e.g., high vs. low incidence)
+if("incidence" %in% names(malaria_data)) {
+  median_incidence <- median(malaria_data$incidence)
+  malaria_data$high_incidence <- as.factor(ifelse(malaria_data$incidence > median_incidence, 1, 0))
+}
+
+# Standardize numeric predictors for better mixing in MCMC
+malaria_data <- malaria_data %>%
+  mutate(across(c("rainfall", "temperature", "humidity", "elevation"), 
+               ~scale(.)[,1]))
+
+# Simple Bayesian linear regression
+# Model incidence as a function of environmental factors
+bayes_model <- stan_glm(
+  incidence ~ rainfall + temperature + humidity + elevation,
+  data = malaria_data,
+  family = gaussian(),
+  prior = normal(0, 2.5),      # Prior for coefficients
+  prior_intercept = normal(0, 5),  # Prior for intercept
+  prior_aux = exponential(1),  # Prior for error term
+  chains = 4,                  # Number of Markov chains
+  iter = 2000,                 # Number of iterations
+  seed = 123                   # For reproducibility
+)
+
+# Examine the model summary
+print(bayes_model)
+summary(bayes_model)
+
+# Look at posterior distributions of parameters
+posterior_samples <- as.matrix(bayes_model)
+mcmc_areas(posterior_samples, pars = c("rainfall", "temperature", "humidity", "elevation"),
+          prob = 0.95)  # 95% credible intervals
+
+# Plot posterior distributions with prior overlays
+mcmc_dens_overlay(posterior_samples, pars = c("rainfall", "temperature", "humidity", "elevation"))
+
+# Investigate the effect of rainfall on incidence
+rainfall_effect <- posterior_samples[, "rainfall"]
+prob_positive_effect <- mean(rainfall_effect > 0)
+cat("Probability that rainfall has a positive effect on incidence:", 
+    prob_positive_effect, "\n")
+
+# More detailed visualization of rainfall effect
+ggplot(data.frame(rainfall_effect = rainfall_effect), aes(x = rainfall_effect)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "red") +
+  labs(
+    title = "Posterior Distribution of Rainfall Effect on Malaria Incidence",
+    subtitle = paste0("Probability of positive effect: ", round(prob_positive_effect * 100, 1), "%"),
+    x = "Effect Size",
+    y = "Count"
+  ) +
+  theme_minimal()
+
+# Compare variables' relative importance
+variable_importance <- abs(colMeans(posterior_samples[, c("rainfall", "temperature", 
+                                                        "humidity", "elevation")]))
+importance_df <- data.frame(
+  Variable = names(variable_importance),
+  Importance = variable_importance
+)
+
+ggplot(importance_df, aes(x = reorder(Variable, Importance), y = Importance)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(
+    title = "Variable Importance in Bayesian Model",
+    subtitle = "Based on absolute effect size",
+    x = "",
+    y = "Mean Absolute Effect Size"
+  ) +
+  theme_minimal()
+
+# Posterior predictive checks
+pp_check(bayes_model, nreps = 50)
+
+# Fit similar model with frequentist approach for comparison
+freq_model <- glm(
+  incidence ~ rainfall + temperature + humidity + elevation,
+  data = malaria_data,
+  family = gaussian()
+)
+
+# Compare coefficients
+coef_comparison <- data.frame(
+  Variable = names(coef(freq_model)),
+  Frequentist = coef(freq_model),
+  Bayesian = colMeans(posterior_samples)[names(coef(freq_model))]
+)
+print(coef_comparison)
+            </code></pre>
+        </div>
+        
+        <div class="explanation">
+            <h4>🔍 Explanation:</h4>
+            <p>✔ <code>rstanarm</code> implements Bayesian regression using Stan<br>
+            ✔ The model estimates posterior distributions, not just point estimates<br>
+            ✔ Credible intervals show the range of plausible values for parameters<br>
+            ✔ Posterior probability statements (e.g., "95% probability rainfall increases incidence") are straightforward<br>
+            ✔ Posterior predictive checks assess model fit by comparing observed data to predictions</p>
+        </div>
+        
+        <hr>
+        
+        <h3>Step 3: Bayesian Hierarchical Models for Malaria</h3>
+        <div class="r-code">
+            <pre><code>
+# Hierarchical (multilevel) models account for grouped data
+# For malaria data, we might have observations nested within regions
+
+# Check if we have hierarchical data structure
+if("region" %in% names(malaria_data) && length(unique(malaria_data$region)) > 1) {
+  # Examine the number of observations per region
+  table(malaria_data$region)
+  
+  # Plot incidence by region
+  ggplot(malaria_data, aes(x = region, y = incidence)) +
+    geom_boxplot() +
+    theme_minimal() +
+    labs(title = "Malaria Incidence by Region",
+        x = "Region",
+        y = "Incidence") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  # Fit a Bayesian hierarchical model
+  # This allows region-specific effects while borrowing strength across regions
+  hierarchical_model <- stan_glmer(
+    incidence ~ rainfall + temperature + (1 + rainfall | region),
+    data = malaria_data,
+    family = gaussian(),
+    prior = normal(0, 2.5),
+    prior_intercept = normal(0, 5),
+    prior_aux = exponential(1),
+    prior_covariance = decov(reg = 1, conc = 1, shape = 1, scale = 1),
+    chains = 4,
+    iter = 2000,
+    seed = 123
+  )
+  
+  # Examine model summary
+  print(hierarchical_model)
+  
+  # Extract random effects (region-specific deviations)
+  ranef_summary <- summary(ranef(hierarchical_model))
+  print(ranef_summary)
+  
+  # Visualize varying slopes and intercepts
+  re_effects <- ranef(hierarchical_model)
+  region_effects <- re_effects$region
+  
+  # Create a dataframe for plotting
+  region_df <- data.frame(
+    region = rownames(region_effects),
+    intercept = region_effects[, 1],
+    rainfall_slope = region_effects[, 2]
+  )
+  
+  # Plot region-specific intercepts
+  ggplot(region_df, aes(x = reorder(region, intercept), y = intercept)) +
+    geom_point(size = 3) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+    coord_flip() +
+    labs(
+      title = "Region-Specific Intercepts",
+      subtitle = "Deviations from the overall mean",
+      x = "Region",
+      y = "Intercept Adjustment"
+    ) +
+    theme_minimal()
+  
+  # Plot region-specific rainfall effects
+  ggplot(region_df, aes(x = reorder(region, rainfall_slope), y = rainfall_slope)) +
+    geom_point(size = 3) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+    coord_flip() +
+    labs(
+      title = "Region-Specific Rainfall Effects",
+      subtitle = "How rainfall effect varies across regions",
+      x = "Region",
+      y = "Rainfall Slope Adjustment"
+    ) +
+    theme_minimal()
+  
+  # Plot the relationship between intercepts and slopes
+  ggplot(region_df, aes(x = intercept, y = rainfall_slope, label = region)) +
+    geom_point(size = 3) +
+    geom_text(hjust = -0.3, vjust = 0.3) +
+    geom_vline(xintercept = 0, linetype = "dashed", color = "gray") +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "gray") +
+    labs(
+      title = "Relationship Between Region Intercepts and Rainfall Effects",
+      x = "Intercept Adjustment",
+      y = "Rainfall Effect Adjustment"
+    ) +
+    theme_minimal()
+  
+  # Extract the overall fixed effects
+  fixed_effects <- fixef(hierarchical_model)
+  print(fixed_effects)
+  
+  # Make predictions for each region
+  # Create a sequence of rainfall values
+  new_rainfall <- seq(min(malaria_data$rainfall), max(malaria_data$rainfall), length.out = 100)
+  
+  # Base data for predictions
+  base_data <- data.frame(
+    rainfall = new_rainfall,
+    temperature = mean(malaria_data$temperature),
+    humidity = mean(malaria_data$humidity),
+    elevation = mean(malaria_data$elevation)
+  )
+  
+  # Make predictions for each region
+  prediction_list <- list()
+  
+  for (region_name in levels(malaria_data$region)) {
+    new_data <- base_data
+    new_data$region <- region_name
+    
+    # Get posterior predictions
+    post_pred <- posterior_predict(hierarchical_model, newdata = new_data)
+    
+    # Calculate mean and credible intervals
+    pred_mean <- colMeans(post_pred)
+    pred_lower <- apply(post_pred, 2, quantile, 0.025)
+    pred_upper <- apply(post_pred, 2, quantile, 0.975)
+    
+    # Store results
+    region_pred <- data.frame(
+      rainfall = new_rainfall,
+      region = region_name,
+      mean = pred_mean,
+      lower = pred_lower,
+      upper = pred_upper
+    )
+    
+    prediction_list[[region_name]] <- region_pred
+  }
+  
+  # Combine all predictions
+  all_predictions <- do.call(rbind, prediction_list)
+  
+  # Plot the region-specific rainfall effects
+  ggplot(all_predictions, aes(x = rainfall, y = mean, color = region, fill = region)) +
+    geom_line() +
+    geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, color = NA) +
+    labs(
+      title = "Region-Specific Effects of Rainfall on Malaria Incidence",
+      subtitle = "Lines show mean prediction; shaded areas show 95% credible intervals",
+      x = "Rainfall (standardized)",
+      y = "Predicted Incidence"
+    ) +
+    theme_minimal()
+}
+            </code></pre>
+        </div>
+        
+        <div class="explanation">
+            <h4>🔍 Explanation:</h4>
+            <p>✔ Hierarchical (multilevel) models account for grouped data structure<br>
+            ✔ For malaria studies, regions or health facilities often form natural groupings<br>
+            ✔ <code>stan_glmer()</code> allows varying intercepts and slopes by group<br>
+            ✔ This approach "borrows strength" across regions while allowing regional differences<br>
+            ✔ Region-specific predictions enable targeted intervention planning</p>
+        </div>
+        
+        <hr>
+        
+        <h3>Step 4: Bayesian Prediction and Decision Making</h3>
+        <div class="r-code">
+            <pre><code>
+# Using Bayesian models for prediction and decision-making
+# Define new locations for prediction
+new_locations <- data.frame(
+  rainfall = c(0.5, -1.0, 1.5),  # Standardized values
+  temperature = c(1.0, 0.2, -0.8),
+  humidity = c(0.2, -0.5, 1.2),
+  elevation = c(-0.8, 1.2, 0.3),
+  region = c("Region1", "Region2", "Region3")
+)
+
+# Ensure region is a factor with the same levels as in the training data
+new_locations$region <- factor(new_locations$region, levels = levels(malaria_data$region))
+
+# Generate posterior predictions
+posterior_preds <- posterior_predict(hierarchical_model, newdata = new_locations)
+
+# Calculate mean and 95% credible intervals
+pred_summary <- data.frame(
+  Location = 1:nrow(new_locations),
+  Mean = colMeans(posterior_preds),
+  Lower_95 = apply(posterior_preds, 2, quantile, 0.025),
+  Upper_95 = apply(posterior_preds, 2, quantile, 0.975)
+)
+
+print(pred_summary)
+
+# Visualize the predictions with uncertainty
+ggplot(pred_summary, aes(x = factor(Location), y = Mean)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = Lower_95, ymax = Upper_95), width = 0.2) +
+  labs(
+    title = "Predicted Malaria Incidence with Uncertainty",
+    subtitle = "Points show mean prediction; error bars show 95% credible intervals",
+    x = "Location",
+    y = "Predicted Incidence"
+  ) +
+  theme_minimal()
+
+# Probability of exceeding a threshold (e.g., epidemic threshold)
+epidemic_threshold <- 50  # Define an appropriate threshold
+prob_epidemic <- colMeans(posterior_preds > epidemic_threshold)
+
+# Add to our summary
+pred_summary$Prob_Epidemic <- prob_epidemic
+print(pred_summary)
+
+# Visualize epidemic probability
+ggplot(pred_summary, aes(x = factor(Location), y = Prob_Epidemic, fill = Prob_Epidemic)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(round(Prob_Epidemic * 100, 1), "%")), vjust = -0.5) +
+  scale_fill_gradient(low = "green", high = "red") +
+  labs(
+    title = "Probability of Exceeding Epidemic Threshold",
+    x = "Location",
+    y = "Probability"
+  ) +
+  ylim(0, 1) +
+  theme_minimal()
+
+# Expected loss analysis for intervention decisions
+# Assume:
+# - Loss without intervention when there's an outbreak: 100 units
+# - Loss with intervention when there's no outbreak: 30 units
+# - Loss with intervention when there is an outbreak: 20 units
+# - Loss without intervention when there's no outbreak: 0 units
+
+loss_no_int_outbreak <- 100
+loss_int_no_outbreak <- 30
+loss_int_outbreak <- 20
+loss_no_int_no_outbreak <- 0
+
+# Calculate expected loss for both decisions
+exp_loss_intervention <- loss_int_outbreak * prob_epidemic + loss_int_no_outbreak * (1 - prob_epidemic)
+exp_loss_no_intervention <- loss_no_int_outbreak * prob_epidemic + loss_no_int_no_outbreak * (1 - prob_epidemic)
+
+# Determine optimal decision
+optimal_decision <- ifelse(exp_loss_intervention < exp_loss_no_intervention, 
+                         "Intervene", "Don't Intervene")
+
+# Create decision table
+decision_df <- data.frame(
+  Location = 1:nrow(new_locations),
+  Prob_Epidemic = prob_epidemic,
+  Expected_Loss_Intervention = exp_loss_intervention,
+  Expected_Loss_No_Intervention = exp_loss_no_intervention,
+  Optimal_Decision = optimal_decision
+)
+
+print(decision_df)
+
+# Visualize the decision analysis
+decision_df_long <- decision_df %>%
+  select(Location, Expected_Loss_Intervention, Expected_Loss_No_Intervention) %>%
+  pivot_longer(cols = c(Expected_Loss_Intervention, Expected_Loss_No_Intervention),
+              names_to = "Decision", values_to = "Expected_Loss")
+
+ggplot(decision_df_long, aes(x = factor(Location), y = Expected_Loss, fill = Decision)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_text(aes(label = round(Expected_Loss, 1)), position = position_dodge(width = 0.9), vjust = -0.5) +
+  labs(
+    title = "Expected Loss by Decision",
+    subtitle = "Lower expected loss indicates preferred decision",
+    x = "Location",
+    y = "Expected Loss"
+  ) +
+  theme_minimal()
+
+# Create a function to determine optimal decision threshold
+find_threshold <- function(loss_no_int_outbreak, loss_int_no_outbreak, 
+                         loss_int_outbreak, loss_no_int_no_outbreak) {
+  # Threshold probability where expected losses are equal
+  p_threshold <- (loss_int_no_outbreak - loss_no_int_no_outbreak) / 
+                ((loss_no_int_outbreak - loss_int_outbreak) + 
+                 (loss_int_no_outbreak - loss_no_int_no_outbreak))
+  
+  return(p_threshold)
+}
+
+decision_threshold <- find_threshold(loss_no_int_outbreak, loss_int_no_outbreak, 
+                                   loss_int_outbreak, loss_no_int_no_outbreak)
+
+cat("Decision threshold: Intervene when P(epidemic) >", decision_threshold, "\n")
+
+# Visualize the loss function and decision threshold
+p_seq <- seq(0, 1, by = 0.01)
+exp_loss_int <- loss_int_outbreak * p_seq + loss_int_no_outbreak * (1 - p_seq)
+exp_loss_no_int <- loss_no_int_outbreak * p_seq + loss_no_int_no_outbreak * (1 - p_seq)
+
+loss_df <- data.frame(
+  Probability = p_seq,
+  Intervention = exp_loss_int,
+  No_Intervention = exp_loss_no_int
+)
+
+loss_df_long <- loss_df %>%
+  pivot_longer(cols = c(Intervention, No_Intervention),
+              names_to = "Decision", values_to = "Expected_Loss")
+
+ggplot(loss_df_long, aes(x = Probability, y = Expected_Loss, color = Decision)) +
+  geom_line(size = 1) +
+  geom_vline(xintercept = decision_threshold, linetype = "dashed") +
+  annotate("text", x = decision_threshold + 0.05, y = 50, 
+           label = paste("Threshold =", round(decision_threshold, 2))) +
+  labs(
+    title = "Expected Loss by Decision for Different Epidemic Probabilities",
+    subtitle = "Vertical line shows the decision threshold probability",
+    x = "Probability of Epidemic",
+    y = "Expected Loss"
+  ) +
+  theme_minimal()
+            </code></pre>
+        </div>
+        
+        <div class="explanation">
+            <h4>🔍 Explanation:</h4>
+            <p>✔ Bayesian models naturally quantify prediction uncertainty<br>
+            ✔ We can directly calculate probabilities of exceeding epidemic thresholds<br>
+            ✔ Decision analysis combines probabilities with costs/losses<br>
+            ✔ Expected loss minimization provides a framework for intervention decisions<br>
+            ✔ The decision threshold is influenced by the relative costs of different outcomes</p>
+        </div>
+        
+        <hr>
+        
+        <h2 id="spatial-interpolation">2️⃣ Spatial Interpolation with Kriging</h2>
+        
+        <h3>Step 1: Understanding Spatial Dependency in Malaria Data</h3>
+        <div class="r-code">
+            <pre><code>
+# Install and load necessary packages
+install.packages(c("sp", "gstat", "automap", "raster", "ggplot2", "sf", "dplyr"))
+library(sp)
+library(gstat)
+library(automap)
+library(raster)
+library(ggplot2)
+library(sf)
+library(dplyr)
+
+# Load malaria point data with spatial coordinates
+malaria_points <- read.csv("malaria_points.csv")
+
+# Examine the data structure
+str(malaria_points)
+summary(malaria_points)
+
+# We need at minimum: longitude, latitude, and a value to interpolate (e.g., prevalence)
+# Ensure columns are properly named
+names(malaria_points)
+
+# Create a spatial points data frame
+coordinates(malaria_points) <- c("longitude", "latitude")
+
+# Set the coordinate reference system (CRS)
+# Here we use WGS84 (EPSG:4326), but use the appropriate CRS for your region
+proj4string(malaria_points) <- CRS("+proj=longlat +datum=WGS84")
+
+# Visualize the point data
+plot(malaria_points, pch = 20, cex = sqrt(malaria_points$prevalence) * 3,
+     main = "Malaria Prevalence at Sampling Locations")
+
+# Convert to sf object for better plotting
+malaria_sf <- st_as_sf(malaria_points)
+
+ggplot(malaria_sf) +
+  geom_sf(aes(size = prevalence, color = prevalence)) +
+  scale_color_viridis_c() +
+  labs(
+    title = "Malaria Prevalence at Sampling Locations",
+    size = "Prevalence",
+    color = "Prevalence"
+  ) +
+  theme_minimal()
+
+# Explore spatial autocorrelation
+# Calculate distances between all pairs of points
+dist_matrix <- spDists(malaria_points, longlat = TRUE)
+
+# Function to calculate semivariogram manually
+calculate_semivariogram <- function(data, distances, n_bins = 15) {
+  # Get the variable to analyze
+  var_values <- data$prevalence
+  n <- length(var_values)
+  
+  # Calculate value differences for all pairs
+  diff_matrix <- matrix(NA, n, n)
+  for(i in 1:n) {
+    for(j in 1:n) {
+      diff_matrix[i, j] <- (var_values[i] - var_values[j])^2
+    }
+  }
+  
+  # Determine distance bins
+  max_dist <- max(distances)
+  bins <- seq(0, max_dist, length.out = n_bins + 1)
+  bin_centers <- (bins[-1] + bins[-length(bins)]) / 2
+  
+  # Calculate semivariance for each bin
+  semivariance <- numeric(n_bins)
+  for(i in 1:n_bins) {
+    # Find pairs in this distance bin
+    bin_pairs <- which(distances >= bins[i] & distances < bins[i+1], arr.ind = TRUE)
+    
+    if(nrow(bin_pairs) > 0) {
+      # Calculate semivariance as half the mean squared difference
+      semivariance[i] <- sum(diff_matrix[bin_pairs]) / (2 * nrow(bin_pairs))
+    } else {
+      semivariance[i] <- NA
+    }
+  }
+
+}
+  
+  return(data.frame(distance = bin_centers, semivariance = semivariance))
+}
+
+# Calculate empirical semivariogram
+semivariogram <- calculate_semivariogram(malaria_points@data, dist_matrix)
+
+# Plot empirical semivariogram
+ggplot(semivariogram, aes(x = distance, y = semivariance)) +
+  geom_point(size = 3) +
+  geom_line() +
+  labs(
+    title = "Empirical Semivariogram for Malaria Prevalence",
+    subtitle = "Shows spatial dependence at different distances",
+    x = "Distance (degrees)",
+    y = "Semivariance"
+  ) +
+  theme_minimal()
+
+# Use gstat's variogram function for a more robust calculation
+v <- variogram(prevalence ~ 1, data = malaria_points)
+plot(v, main = "Empirical Variogram for Malaria Prevalence")
+
+# Fit variogram models
+v_fit <- fit.variogram(v, model = vgm(c("Sph", "Exp", "Gau")))
+print(v_fit)
+
+# Plot the fitted variogram model
+plot(v, v_fit, main = "Fitted Variogram Model")
+
+# Explain variogram parameters
+cat("Nugget:", v_fit$psill[1], "- Represents measurement error or small-scale variation\n")
+cat("Partial Sill:", v_fit$psill[2], "- Variance explained by spatial dependence\n")
+cat("Range:", v_fit$range[2], "- Distance beyond which spatial correlation becomes negligible\n")
+cat("Model:", as.character(v_fit$model[2]), "- Mathematical model describing spatial dependence\n")
+
+# Calculate the proportion of spatial dependence
+spatial_dependence <- v_fit$psill[2] / sum(v_fit$psill)
+cat("Proportion of variance due to spatial dependence:", round(spatial_dependence * 100, 1), "%\n")
+            </code></pre>
+        </div>
+        
+        <div class="explanation">
+            <h4>🔍 Explanation:</h4>
+            <p>✔ Spatial interpolation relies on the principle of spatial autocorrelation<br>
+            ✔ The semivariogram quantifies how similarity changes with distance<br>
+            ✔ Key parameters include the nugget (measurement error), sill (total variance), and range (correlation distance)<br>
+            ✔ Different variogram models (spherical, exponential, Gaussian) describe different spatial patterns<br>
+            ✔ A well-fitted variogram is essential for accurate kriging interpolation</p>
+        </div>
+        
+        <hr>
+        
+        <h3>Step 2: Ordinary Kriging for Malaria Risk Mapping</h3>
+        <div class="r-code">
+            <pre><code>
+# Create a grid for interpolation
+# Define the extent of your study area (slightly larger than the point data)
+bbox <- bbox(malaria_points)
+x_range <- bbox[1, ] + c(-0.1, 0.1)  # Add some buffer
+y_range <- bbox[2, ] + c(-0.1, 0.1)
+
+# Create a grid with desired resolution
+grid_res <- 0.01  # Adjust based on your needs and area size
+grid <- expand.grid(
+  longitude = seq(x_range[1], x_range[2], by = grid_res),
+  latitude = seq(y_range[1], y_range[2], by = grid_res)
+)
+coordinates(grid) <- c("longitude", "latitude")
+gridded(grid) <- TRUE
+proj4string(grid) <- proj4string(malaria_points)
+
+# Perform ordinary kriging
+krige_model <- gstat(formula = prevalence ~ 1, 
+                   data = malaria_points,
+                   model = v_fit)
+
+# Make predictions on the grid
+krige_pred <- predict(krige_model, grid)
+
+# Extract prediction and variance
+pred_raster <- raster(krige_pred["var1.pred"])
+var_raster <- raster(krige_pred["var1.var"])
+sd_raster <- sqrt(var_raster)  # Standard deviation raster
+
+# Plot the prediction raster
+plot(pred_raster, main = "Kriging Prediction: Malaria Prevalence")
+
+# Plot the prediction standard deviation
+plot(sd_raster, main = "Kriging Standard Deviation")
+
+# Convert to data frame for ggplot
+pred_df <- as.data.frame(krige_pred)
+names(pred_df) <- c("longitude", "latitude", "prediction", "variance")
+pred_df$sd <- sqrt(pred_df$variance)
+
+# Create nicer maps with ggplot
+ggplot(pred_df, aes(x = longitude, y = latitude, fill = prediction)) +
+  geom_raster() +
+  scale_fill_viridis_c(option = "plasma", name = "Prevalence") +
+  labs(
+    title = "Kriged Malaria Prevalence Surface",
+    subtitle = "Ordinary kriging interpolation",
+    x = "Longitude",
+    y = "Latitude"
+  ) +
+  theme_minimal() +
+  theme(panel.grid = element_blank()) +
+  coord_fixed()
+
+# Plot the prediction uncertainty
+ggplot(pred_df, aes(x = longitude, y = latitude, fill = sd)) +
+  geom_raster() +
+  scale_fill_viridis_c(option = "inferno", name = "SD") +
+  labs(
+    title = "Kriging Interpolation Uncertainty",
+    subtitle = "Standard deviation of predictions",
+    x = "Longitude",
+    y = "Latitude"
+  ) +
+  theme_minimal() +
+  theme(panel.grid = element_blank()) +
+  coord_fixed()
+
+# Add original data points to the prediction map
+ggplot() +
+  geom_raster(data = pred_df, aes(x = longitude, y = latitude, fill = prediction)) +
+  geom_point(data = as.data.frame(malaria_points), 
+            aes(x = longitude, y = latitude, size = prevalence),
+            color = "black", alpha = 0.7) +
+  scale_fill_viridis_c(option = "plasma", name = "Prevalence") +
+  labs(
+    title = "Kriged Malaria Prevalence with Sampling Locations",
+    x = "Longitude",
+    y = "Latitude",
+    size = "Observed Prevalence"
+  ) +
+  theme_minimal() +
+  theme(panel.grid = element_blank()) +
+  coord_fixed()
+
+# Probability of exceeding a threshold
+threshold <- 0.20  # e.g., 20% prevalence
+# Calculate probability under normal distribution assumption
+pred_df$prob_exceed <- pnorm(threshold, mean = pred_df$prediction, sd = pred_df$sd, lower.tail = FALSE)
+
+# Map the exceedance probabilities
+ggplot(pred_df, aes(x = longitude, y = latitude, fill = prob_exceed)) +
+  geom_raster() +
+  scale_fill_gradientn(colors = c("green", "yellow", "red"), 
+                      limits = c(0, 1), name = "Probability") +
+  labs(
+    title = "Probability of Malaria Prevalence Exceeding 20%",
+    subtitle = "Based on kriging prediction and uncertainty",
+    x = "Longitude",
+    y = "Latitude"
+  ) +
+  theme_minimal() +
+  theme(panel.grid = element_blank()) +
+  coord_fixed()
+
+# Save the results for further use
+writeRaster(pred_raster, "malaria_prevalence_kriged.tif", overwrite = TRUE)
+writeRaster(sd_raster, "malaria_uncertainty_kriged.tif", overwrite = TRUE)
+            </code></pre>
+        </div>
+        
+        <div class="explanation">
+            <h4>🔍 Explanation:</h4>
+            <p>✔ Ordinary kriging creates a continuous surface from discrete point data<br>
+            ✔ The method honors the original data points while interpolating between them<br>
+            ✔ Kriging provides both predictions and associated uncertainties<br>
+            ✔ Higher uncertainty typically occurs in areas far from sampling points<br>
+            ✔ Exceedance probability maps help identify high-risk areas for targeted interventions</p>
+        </div>
+        
+        <hr>
+        
+        <h3>Step 3: Universal Kriging with Environmental Covariates</h3>
+        <div class="r-code">
+            <pre><code>
+# Universal kriging (kriging with external drift) incorporates covariates
+# For malaria, we might use environmental factors like elevation, rainfall, temperature
+
+# First, make sure our point data includes these covariates
+print(names(malaria_points))
+
+if(all(c("elevation", "rainfall", "temperature") %in% names(malaria_points@data))) {
+  # Explore relationships between prevalence and covariates
+  malaria_df <- as.data.frame(malaria_points)
+  
+  # Scatterplots
+  par(mfrow = c(1, 3))
+  plot(malaria_df$prevalence ~ malaria_df$elevation, 
+       main = "Prevalence vs Elevation", pch = 16)
+  abline(lm(prevalence ~ elevation, data = malaria_df), col = "red")
+  
+  plot(malaria_df$prevalence ~ malaria_df$rainfall, 
+       main = "Prevalence vs Rainfall", pch = 16)
+  abline(lm(prevalence ~ rainfall, data = malaria_df), col = "red")
+  
+  plot(malaria_df$prevalence ~ malaria_df$temperature, 
+       main = "Prevalence vs Temperature", pch = 16)
+  abline(lm(prevalence ~ temperature, data = malaria_df), col = "red")
+  par(mfrow = c(1, 1))
+  
+  # Create raster layers for covariates (you would typically have these already)
+  # For this example, we'll create them from the point data using IDW interpolation
+  
+  # Interpolate elevation
+  idw_elev <- idw(elevation ~ 1, malaria_points, grid)
+  elev_raster <- raster(idw_elev["var1.pred"])
+  
+  # Interpolate rainfall
+  idw_rain <- idw(rainfall ~ 1, malaria_points, grid)
+  rain_raster <- raster(idw_rain["var1.pred"])
+  
+  # Interpolate temperature
+  idw_temp <- idw(temperature ~ 1, malaria_points, grid)
+  temp_raster <- raster(idw_temp["var1.pred"])
+  
+  # Create a raster stack of covariates
+  cov_stack <- stack(elev_raster, rain_raster, temp_raster)
+  names(cov_stack) <- c("elevation", "rainfall", "temperature")
+  
+  # Extract covariate values at grid points
+  grid_df <- as.data.frame(grid)
+  grid$elevation <- over(grid, elev_raster)$layer
+  grid$rainfall <- over(grid, rain_raster)$layer
+  grid$temperature <- over(grid, temp_raster)$layer
+  
+  # Perform variogram analysis with trend model
+  v_trend <- variogram(prevalence ~ elevation + rainfall + temperature, 
+                      data = malaria_points)
+  v_trend_fit <- fit.variogram(v_trend, model = vgm(c("Sph", "Exp", "Gau")))
+  plot(v_trend, v_trend_fit, main = "Variogram with Trend Model")
+  
+  # Universal kriging (kriging with external drift)
+  uk_model <- gstat(formula = prevalence ~ elevation + rainfall + temperature, 
+                   data = malaria_points,
+                   model = v_trend_fit)
+  
+  # Make predictions
+  uk_pred <- predict(uk_model, grid)
+  
+  # Extract prediction and variance
+  uk_pred_raster <- raster(uk_pred["var1.pred"])
+  uk_var_raster <- raster(uk_pred["var1.var"])
+  uk_sd_raster <- sqrt(uk_var_raster)
+  
+  # Plot the universal kriging prediction
+  plot(uk_pred_raster, main = "Universal Kriging: Malaria Prevalence")
+  
+  # Convert to data frame for ggplot
+  uk_pred_df <- as.data.frame(uk_pred)
+  names(uk_pred_df) <- c("longitude", "latitude", "prediction", "variance")
+  uk_pred_df$sd <- sqrt(uk_pred_df$variance)
+  
+  # Create map of universal kriging predictions
+  ggplot(uk_pred_df, aes(x = longitude, y = latitude, fill = prediction)) +
+    geom_raster() +
+    scale_fill_viridis_c(option = "plasma", name = "Prevalence") +
+    labs(
+      title = "Universal Kriging of Malaria Prevalence",
+      subtitle = "Incorporating elevation, rainfall, and temperature",
+      x = "Longitude",
+      y = "Latitude"
+    ) +
+    theme_minimal() +
+    theme(panel.grid = element_blank()) +
+    coord_fixed()
+  
+  # Compare ordinary and universal kriging
+  # Extract predictions for both methods at the original points
+  ok_at_points <- over(malaria_points, pred_raster)
+  uk_at_points <- over(malaria_points, uk_pred_raster)
+  
+  # Combine with observed values
+  validation_df <- data.frame(
+    observed = malaria_points$prevalence,
+    ok_predicted = ok_at_points$layer,
+    uk_predicted = uk_at_points$layer
+  )
+  
+  # Calculate error metrics for both methods
+  ok_rmse <- sqrt(mean((validation_df$observed - validation_df$ok_predicted)^2))
+  uk_rmse <- sqrt(mean((validation_df$observed - validation_df$uk_predicted)^2))
+  
+  ok_mae <- mean(abs(validation_df$observed - validation_df$ok_predicted))
+  uk_mae <- mean(abs(validation_df$observed - validation_df$uk_predicted))
+  
+  cat("Ordinary Kriging RMSE:", ok_rmse, "\n")
+  cat("Universal Kriging RMSE:", uk_rmse, "\n")
+  cat("Ordinary Kriging MAE:", ok_mae, "\n")
+  cat("Universal Kriging MAE:", uk_mae, "\n")
+  
+  # Visualize the comparison
+  par(mfrow = c(1, 2))
+  plot(validation_df$observed, validation_df$ok_predicted,
+       xlab = "Observed", ylab = "Predicted",
+       main = paste("Ordinary Kriging (RMSE =", round(ok_rmse, 3), ")"),
+       pch = 16, xlim = c(0, max(validation_df$observed)),
+       ylim = c(0, max(validation_df$observed)))
+  abline(0, 1, col = "red")
+  
+  plot(validation_df$observed, validation_df$uk_predicted,
+       xlab = "Observed", ylab = "Predicted",
+       main = paste("Universal Kriging (RMSE =", round(uk_rmse, 3), ")"),
+       pch = 16, xlim = c(0, max(validation_df$observed)),
+       ylim = c(0, max(validation_df$observed)))
+  abline(0, 1, col = "red")
+  par(mfrow = c(1, 1))
+  
+  # Save the universal kriging results
+  writeRaster(uk_pred_raster, "malaria_prevalence_uk.tif", overwrite = TRUE)
+  writeRaster(uk_sd_raster, "malaria_uncertainty_uk.tif", overwrite = TRUE)
+} else {
+  cat("Covariates (elevation, rainfall, temperature) not found in the dataset.\n")
+  cat("Universal kriging requires these covariates.\n")
+}
+            </code></pre>
+        </div>
+        
+        <div class="explanation">
+            <h4>🔍 Explanation:</h4>
+            <p>✔ Universal kriging (or kriging with external drift) incorporates covariates<br>
+            ✔ For malaria, environmental factors often influence spatial distribution<br>
+            ✔ The method models the trend related to covariates plus residual spatial correlation<br>
+            ✔ Universal kriging typically improves prediction accuracy compared to ordinary kriging<br>
+            ✔ The approach is particularly useful when clear relationships exist between malaria and environmental factors</p>
+        </div>
+        
+        <hr>
+        
+        <h3>Step 4: Cross-Validation and Comparison of Interpolation Methods</h3>
+        <div class="r-code">
+            <pre><code>
+# Cross-validation to assess interpolation accuracy
+# We'll use leave-one-out cross-validation (LOOCV)
+
+# Ordinary kriging cross-validation
+ok_cv <- krige.cv(prevalence ~ 1, 
+                 malaria_points,
+                 model = v_fit)
+
+# Summary of ordinary kriging CV results
+print(summary(ok_cv))
+
+# Calculate error metrics
+ok_cv$residual <- ok_cv$observed - ok_cv$var1.pred
+ok_cv$squared_residual <- ok_cv$residual^2
+ok_cv$standardized_residual <- ok_cv$residual / sqrt(ok_cv$var1.var)
+
+ok_rmse_cv <- sqrt(mean(ok_cv$squared_residual))
+ok_mae_cv <- mean(abs(ok_cv$residual))
+ok_mean_error <- mean(ok_cv$residual)
+ok_mean_std_error <- mean(ok_cv$standardized_residual)
+ok_std_error_sd <- sd(ok_cv$standardized_residual)
+
+cat("Ordinary Kriging CV Results:\n")
+cat("RMSE:", ok_rmse_cv, "\n")
+cat("MAE:", ok_mae_cv, "\n")
+cat("Mean Error:", ok_mean_error, "- Should be close to 0 for unbiased predictions\n")
+cat("Mean Standardized Error:", ok_mean_std_error, "- Should be close to 0\n")
+cat("SD of Standardized Errors:", ok_std_error_sd, "- Should be close to 1 if uncertainty is well-estimated\n")
+
+# Universal kriging cross-validation
+if(exists("v_trend_fit")) {
+  uk_cv <- krige.cv(prevalence ~ elevation + rainfall + temperature, 
+                   malaria_points,
+                   model = v_trend_fit)
+  
+  # Calculate error metrics for universal kriging
+  uk_cv$residual <- uk_cv$observed - uk_cv$var1.pred
+  uk_cv$squared_residual <- uk_cv$residual^2
+  uk_cv$standardized_residual <- uk_cv$residual / sqrt(uk_cv$var1.var)
+  
+  uk_rmse_cv <- sqrt(mean(uk_cv$squared_residual))
+  uk_mae_cv <- mean(abs(uk_cv$residual))
+  uk_mean_error <- mean(uk_cv$residual)
+  uk_mean_std_error <- mean(uk_cv$standardized_residual)
+  uk_std_error_sd <- sd(uk_cv$standardized_residual)
+  
+  cat("\nUniversal Kriging CV Results:\n")
+  cat("RMSE:", uk_rmse_cv, "\n")
+  cat("MAE:", uk_mae_cv, "\n")
+  cat("Mean Error:", uk_mean_error, "- Should be close to 0 for unbiased predictions\n")
+  cat("Mean Standardized Error:", uk_mean_std_error, "- Should be close to 0\n")
+  cat("SD of Standardized Errors:", uk_std_error_sd, "- Should be close to 1 if uncertainty is well-estimated\n")
+  
+  # Compare the methods
+  cat("\nImprovement with Universal Kriging:\n")
+  cat("RMSE reduction:", round((ok_rmse_cv - uk_rmse_cv) / ok_rmse_cv * 100, 1), "%\n")
+  cat("MAE reduction:", round((ok_mae_cv - uk_mae_cv) / ok_mae_cv * 100, 1), "%\n")
+}
+
+# Compare kriging with simpler methods (IDW)
+idw_cv <- krige.cv(prevalence ~ 1, 
+                  malaria_points,
+                  model = NULL,  # NULL model means IDW
+                  nmax = 12,     # Number of neighbors to use
+                  nfold = nrow(malaria_points),  # LOOCV
+                  set = list(idp = 2))  # Power parameter for IDW
+
+idw_cv$residual <- idw_cv$observed - idw_cv$var1.pred
+idw_rmse_cv <- sqrt(mean(idw_cv$residual^2))
+idw_mae_cv <- mean(abs(idw_cv$residual))
+
+cat("\nIDW Cross-Validation Results:\n")
+cat("RMSE:", idw_rmse_cv, "\n")
+cat("MAE:", idw_mae_cv, "\n")
+
+# Visualize the cross-validation results
+# Combine CV results from all methods
+cv_results <- data.frame(
+  Method = c(rep("Ordinary Kriging", nrow(ok_cv)),
+            if(exists("uk_cv")) rep("Universal Kriging", nrow(uk_cv)) else NULL,
+            rep("IDW", nrow(idw_cv))),
+  Observed = c(ok_cv$observed,
+              if(exists("uk_cv")) uk_cv$observed else NULL,
+              idw_cv$observed),
+  Predicted = c(ok_cv$var1.pred,
+               if(exists("uk_cv")) uk_cv$var1.pred else NULL,
+               idw_cv$var1.pred),
+  Residual = c(ok_cv$residual,
+              if(exists("uk_cv")) uk_cv$residual else NULL,
+              idw_cv$residual)
+)
+
+# Create a comparison plot
+ggplot(cv_results, aes(x = Observed, y = Predicted, color = Method)) +
+  geom_point(alpha = 0.7) +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+  labs(
+    title = "Cross-Validation: Observed vs. Predicted",
+    subtitle = "Comparison of interpolation methods",
+    x = "Observed Prevalence",
+    y = "Predicted Prevalence"
+  ) +
+  theme_minimal() +
+  facet_wrap(~ Method)
+
+# Residual analysis
+ggplot(cv_results, aes(x = Predicted, y = Residual, color = Method)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(
+    title = "Residuals by Predicted Value",
+    subtitle = "Check for systematic prediction errors",
+    x = "Predicted Value",
+    y = "Residual (Observed - Predicted)"
+  ) +
+  theme_minimal() +
+  facet_wrap(~ Method)
+
+# RMSE comparison
+method_comparison <- data.frame(
+  Method = c("Ordinary Kriging", if(exists("uk_cv")) "Universal Kriging" else NULL, "IDW"),
+  RMSE = c(ok_rmse_cv, if(exists("uk_cv")) uk_rmse_cv else NULL, idw_rmse_cv),
+  MAE = c(ok_mae_cv, if(exists("uk_cv")) uk_mae_cv else NULL, idw_mae_cv)
+)
+
+ggplot(method_comparison, aes(x = Method, y = RMSE, fill = Method)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = round(RMSE, 3)), vjust = -0.5) +
+  labs(
+    title = "RMSE Comparison Across Interpolation Methods",
+    x = "",
+    y = "Root Mean Square Error"
+  ) +
+  theme_minimal()
+            </code></pre>
+        </div>
+        
+        <div class="explanation">
+            <h4>🔍 Explanation:</h4>
+            <p>✔ Cross-validation assesses interpolation accuracy by predicting at known points<br>
+            ✔ Leave-one-out cross-validation (LOOCV) predicts each point using all other points<br>
+            ✔ Key metrics include RMSE, MAE, and standardized errors<br>
+            ✔ Universal kriging typically outperforms ordinary kriging when relevant covariates are available<br>
+            ✔ Standardized errors help assess whether uncertainty estimates are reliable</p>
+        </div>
+        
+        <hr>
+        
+        <h2 id="hotspot">3️⃣ Hotspot Analysis for Malaria Surveillance</h2>
+        
+        <h3>Step 1: Understanding Spatial Clustering of Malaria</h3>
+        <div class="r-code">
+            <pre><code>
+# Install and load necessary packages
+install.packages(c("spdep", "sf", "ggplot2", "dplyr", "mapview"))
+library(spdep)
+library(sf)
+library(ggplot2)
+library(dplyr)
+library(mapview)
+
+# Load malaria incidence data
+# This could be point data or polygon data (e.g., by district)
+malaria_data <- read.csv("malaria_districts.csv")
+
+# Convert to sf object for spatial analysis
+# For polygon data
+if("geometry" %in% names(malaria_data) || "WKT" %in% names(malaria_data)) {
+  # If geometry is provided as Well-Known Text (WKT)
+  if("WKT" %in% names(malaria_data)) {
+    malaria_sf <- st_as_sf(malaria_data, wkt = "WKT")
+  } else {
+    # Directly use the geometry column
+    malaria_sf <- st_as_sf(malaria_data)
+  }
+} else if(all(c("longitude", "latitude") %in% names(malaria_data))) {
+  # For point data with coordinates
+  malaria_sf <- st_as_sf(malaria_data, coords = c("longitude", "latitude"), 
+                       crs = 4326)
+}
+
+# Set coordinate reference system if not already set
+if(is.na(st_crs(malaria_sf))) {
+  st_crs(malaria_sf) <- 4326  # WGS84
+}
+
+# Examine the data
+print(head(malaria_sf))
+
+# Visualize malaria incidence across districts
+ggplot(malaria_sf) +
+  geom_sf(aes(fill = incidence)) +
+  scale_fill_viridis_c(option = "plasma") +
+  labs(
+    title = "Malaria Incidence by District",
+    fill = "Incidence"
+  ) +
+  theme_minimal()
+
+# Interactive map
+mapview(malaria_sf, zcol = "incidence")
+
+# Create a spatial weights matrix to define neighbors
+# For polygon data (e.g., districts)
+if(length(unique(st_geometry_type(malaria_sf))) == 1 && 
+   unique(st_geometry_type(malaria_sf)) %in% c("POLYGON", "MULTIPOLYGON")) {
+  
+  # Queen contiguity (neighbors share at least one point)
+  nb_queen <- poly2nb(malaria_sf, queen = TRUE)
+  
+  # Rook contiguity (neighbors share edges)
+  nb_rook <- poly2nb(malaria_sf, queen = FALSE)
+  
+  # Compare the number of neighbors
+  par(mfrow = c(1, 2))
+  plot(st_geometry(malaria_sf), main = "Queen Contiguity")
+  plot.nb(nb_queen, st_coordinates(st_centroid(malaria_sf)), add = TRUE)
+  
+  plot(st_geometry(malaria_sf), main = "Rook Contiguity")
+  plot.nb(nb_rook, st_coordinates(st_centroid(malaria_sf)), add = TRUE)
+  par(mfrow = c(1, 1))
+  
+  # We'll proceed with queen contiguity
+  nb <- nb_queen
+  
+} else {
+  # For point data, use distance-based neighbors
+  # k-nearest neighbors
+  coords <- st_coordinates(malaria_sf)
+  nb_knn <- knn2nb(knearneigh(coords, k = 5))
+  
+  # Distance-based neighbors (connect points within a certain distance)
+  d <- 0.1  # Distance threshold (in map units)
+  nb_dist <- dnearneigh(coords, 0, d)
+  
+  # Visualize the neighbor connections
+  par(mfrow = c(1, 2))
+  plot(st_geometry(malaria_sf), main = "K-Nearest Neighbors (k=5)")
+  plot.nb(nb_knn, coords, add = TRUE)
+  
+  plot(st_geometry(malaria_sf), main = paste0("Distance-based (d=", d, ")"))
+  plot.nb(nb_dist, coords, add = TRUE)
+  par(mfrow = c(1, 1))
+  
+  # We'll proceed with k-nearest neighbors
+  nb <- nb_knn
+}
+
+# Create spatial weights matrix
+# Row-standardized weights
+w_row <- nb2listw(nb, style = "W")
+
+# Binary weights
+w_bin <- nb2listw(nb, style = "B")
+
+# Global spatial autocorrelation (Moran's I)
+moran_test <- moran.test(malaria_sf$incidence, w_row)
+print(moran_test)
+
+# Moran's I test results
+cat("Moran's I statistic:", moran_test$estimate[1], "\n")
+cat("Expected value (no autocorrelation):", moran_test$estimate[2], "\n")
+cat("Variance:", moran_test$estimate[3], "\n")
+cat("p-value:", moran_test$p.value, "\n")
+
+# Interpret Moran's I
+if(moran_test$p.value < 0.05) {
+  if(moran_test$estimate[1] > moran_test$estimate[2]) {
+    cat("There is significant positive spatial autocorrelation (clustering).\n")
+  } else {
+    cat("There is significant negative spatial autocorrelation (dispersion).\n")
+  }
+} else {
+  cat("There is no significant spatial autocorrelation (random pattern).\n")
+}
+
+# Moran scatter plot
+mp <- moran.plot(malaria_sf$incidence, w_row,
+                labels = as.character(1:nrow(malaria_sf)),
+                xlab = "Malaria Incidence", 
+                ylab = "Spatially Lagged Incidence")
+
+# Monte Carlo simulation to assess significance
+moran_mc <- moran.mc(malaria_sf$incidence, w_row, nsim = 999)
+plot(moran_mc, main = "Monte Carlo Simulation of Moran's I")
+            </code></pre>
+        </div>
+        
+        <div class="explanation">
+            <h4>🔍 Explanation:</h4>
+            <p>✔ Spatial clustering analysis assesses whether malaria cases are randomly distributed<br>
+            ✔ Neighbor relationships can be defined using contiguity or distance<br>
+            ✔ Moran's I measures global spatial autocorrelation<br>
+            ✔ Positive Moran's I indicates clustering, negative indicates dispersion<br>
+            ✔ The Moran scatter plot visualizes local relationships between values and their neighbors</p>
+        </div>
+        
+        <hr>
+        
+        <h3>Step 2: Local Indicators of Spatial Association (LISA)</h3>
+        <div class="r-code">
+            <pre><code>
+# Local Indicators of Spatial Association (LISA)
+# Calculate local Moran's I
+local_moran <- localmoran(malaria_sf$incidence, w_row)
+
+# Examine the results
+head(local_moran)
+
+# Add local Moran's I results to the data
+malaria_sf$local_moran_i <- local_moran[, "Ii"]  # Local Moran's I statistic
+malaria_sf$local_moran_p <- local_moran[, "Pr(z != E(Ii))"]  # p-value
+
+# Map of local Moran's I values
+ggplot(malaria_sf) +
+  geom_sf(aes(fill = local_moran_i)) +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+  labs(
+    title = "Local Moran's I",
+    subtitle = "Red = positive spatial autocorrelation, Blue = negative",
+    fill = "Local Moran's I"
+  ) +
+  theme_minimal()
+
+# Map of statistical significance
+malaria_sf$significant <- ifelse(malaria_sf$local_moran_p < 0.05, "Significant", "Not Significant")
+
+ggplot(malaria_sf) +
+  geom_sf(aes(fill = significant)) +
+  scale_fill_manual(values = c("Significant" = "red", "Not Significant" = "gray")) +
+  labs(
+    title = "Statistical Significance of Local Moran's I",
+    subtitle = "Areas with significant spatial autocorrelation (p < 0.05)",
+    fill = "Significance"
+  ) +
+  theme_minimal()
+
+# Classify clusters into High-High, Low-Low, High-Low, Low-High
+# First, calculate spatially lagged incidence
+malaria_sf$inc_lag <- lag.listw(w_row, malaria_sf$incidence)
+
+# Mean values for classification
+mean_inc <- mean(malaria_sf$incidence)
+mean_inc_lag <- mean(malaria_sf$inc_lag)
+
+# Classify into LISA categories
+malaria_sf$lisa_cluster <- NA  # Initialize
+malaria_sf$lisa_cluster[malaria_sf$incidence >= mean_inc & 
+                       malaria_sf$inc_lag >= mean_inc_lag & 
+                       malaria_sf$local_moran_p < 0.05] <- "High-High"
+malaria_sf$lisa_cluster[malaria_sf$incidence < mean_inc & 
+                       malaria_sf$inc_lag < mean_inc_lag & 
+                       malaria_sf$local_moran_p < 0.05] <- "Low-Low"
+malaria_sf$lisa_cluster[malaria_sf$incidence >= mean_inc & 
+                       malaria_sf$inc_lag < mean_inc_lag & 
+                       malaria_sf$local_moran_p < 0.05] <- "High-Low"
+malaria_sf$lisa_cluster[malaria_sf$incidence < mean_inc & 
+                       malaria_sf$inc_lag >= mean_inc_lag & 
+                       malaria_sf$local_moran_p < 0.05] <- "Low-High"
+malaria_sf$lisa_cluster[malaria_sf$local_moran_p >= 0.05] <- "Not Significant"
+
+# Create a color-coded map of LISA clusters
+lisa_colors <- c("High-High" = "red", "Low-Low" = "blue", 
+                "High-Low" = "pink", "Low-High" = "lightblue", 
+                "Not Significant" = "white")
+
+ggplot(malaria_sf) +
+  geom_sf(aes(fill = lisa_cluster)) +
+  scale_fill_manual(values = lisa_colors) +
+  labs(
+    title = "LISA Cluster Map for Malaria Incidence",
+    subtitle = "Identifying hotspots (High-High) and coldspots (Low-Low)",
+    fill = "Cluster Type"
+  ) +
+  theme_minimal()
+
+# Interpret the results
+cluster_counts <- table(malaria_sf$lisa_cluster)
+print(cluster_counts)
+
+cat("Interpretation of LISA clusters:\n")
+cat("High-High: Hotspots (high incidence areas surrounded by high incidence)\n")
+cat("Low-Low: Coldspots (low incidence areas surrounded by low incidence)\n")
+cat("High-Low: Spatial outliers (high incidence surrounded by low incidence)\n")
+cat("Low-High: Spatial outliers (low incidence surrounded by high incidence)\n")
+cat("Not Significant: No significant spatial pattern\n")
+
+# Interactive map of LISA clusters
+mapview(malaria_sf, zcol = "lisa_cluster")
+            </code></pre>
+        </div>
+        
+        <div class="explanation">
+            <h4>🔍 Explanation:</h4>
+            <p>✔ Local Indicators of Spatial Association (LISA) identify significant local clusters<br>
+            ✔ Local Moran's I detects hotspots, coldspots, and spatial outliers<br>
+            ✔ High-High clusters (hotspots) represent areas with high incidence surrounded by high values<br>
+            ✔ Low-Low clusters (coldspots) are areas with low incidence surrounded by low values<br>
+            ✔ Spatial outliers (High-Low or Low-High) indicate areas that differ from their neighbors</p>
+        </div>
+        
+        <hr>
+        
+        <h3>Step 3: Getis-Ord Gi* Hotspot Analysis</h3>
+        <div class="r-code">
+            <pre><code>
+# Getis-Ord Gi* statistic for hotspot analysis
+# Unlike local Moran's I, Gi* focuses specifically on identifying concentrations of high or low values
+
+# Calculate Getis-Ord Gi* statistic
+gi_star <- localG(malaria_sf$incidence, w_row)
+
+# Add Gi* results to the data
+malaria_sf$gi_star <- as.numeric(gi_star)
+
+# Map of Gi* z-scores
+ggplot(malaria_sf) +
+  geom_sf(aes(fill = gi_star)) +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", 
+                      midpoint = 0, name = "Gi* z-score") +
+  labs(
+    title = "Getis-Ord Gi* Hotspot Analysis",
+    subtitle = "Red = hotspot, Blue = coldspot (z-scores)"
+  ) +
+  theme_minimal()
+
+# Classify areas based on Gi* significance
+# Convert Gi* to p-values
+gi_pvalues <- 2 * (1 - pnorm(abs(gi_star)))
+
+# Add p-values to the data
+malaria_sf$gi_pvalue <- gi_pvalues
+
+# Classify hotspots and coldspots based on significance levels
+malaria_sf$hotspot_cat <- NA
+# Hotspots
+malaria_sf$hotspot_cat[gi_star > 0 & gi_pvalues < 0.01] <- "High (99% confidence)"
+malaria_sf$hotspot_cat[gi_star > 0 & gi_pvalues >= 0.01 & gi_pvalues < 0.05] <- "High (95% confidence)"
+malaria_sf$hotspot_cat[gi_star > 0 & gi_pvalues >= 0.05 & gi_pvalues < 0.1] <- "High (90% confidence)"
+# Coldspots
+malaria_sf$hotspot_cat[gi_star < 0 & gi_pvalues < 0.01] <- "Low (99% confidence)"
+malaria_sf$hotspot_cat[gi_star < 0 & gi_pvalues >= 0.01 & gi_pvalues < 0.05] <- "Low (95% confidence)"
+malaria_sf$hotspot_cat[gi_star < 0 & gi_pvalues >= 0.05 & gi_pvalues < 0.1] <- "Low (90% confidence)"
+# Not significant
+malaria_sf$hotspot_cat[gi_pvalues >= 0.1 | is.na(gi_pvalues)] <- "Not Significant"
+
+# Create a factor with ordered levels
+hotspot_levels <- c("High (99% confidence)", "High (95% confidence)", "High (90% confidence)",
+                   "Not Significant",
+                   "Low (90% confidence)", "Low (95% confidence)", "Low (99% confidence)")
+malaria_sf$hotspot_cat <- factor(malaria_sf$hotspot_cat, levels = hotspot_levels)
+
+# Define color scheme for hotspots
+hotspot_colors <- c("High (99% confidence)" = "#d7191c",
+                   "High (95% confidence)" = "#fdae61",
+                   "High (90% confidence)" = "#ffffbf",
+                   "Not Significant" = "#ffffff",
+                   "Low (90% confidence)" = "#abd9e9",
+                   "Low (95% confidence)" = "#2c7bb6",
+                   "Low (99% confidence)" = "#053061")
+
+# Create a map of Gi* hotspots and coldspots
+ggplot(malaria_sf) +
+  geom_sf(aes(fill = hotspot_cat)) +
+  scale_fill_manual(values = hotspot_colors, name = "Hotspot Category") +
+  labs(
+    title = "Getis-Ord Gi* Hotspot Analysis for Malaria Incidence",
+    subtitle = "Red = hotspots, Blue = coldspots"
+  ) +
+  theme_minimal()
+
+# Overlay district borders on hotspot map to show context
+ggplot() +
+  geom_sf(data = malaria_sf, aes(fill = hotspot_cat)) +
+  geom_sf(data = malaria_sf, fill = NA, color = "black", size = 0.2) +
+  scale_fill_manual(values = hotspot_colors, name = "Hotspot Category") +
+  labs(
+    title = "Malaria Hotspots by District",
+    subtitle = "Getis-Ord Gi* statistic with confidence levels"
+  ) +
+  theme_minimal()
+
+# Compare Local Moran's I and Getis-Ord Gi*
+# Prepare a comparison dataframe
+comparison_df <- data.frame(
+  District = 1:nrow(malaria_sf),
+  Incidence = malaria_sf$incidence,
+  LocalMoran = malaria_sf$local_moran_i,
+  LocalMoran_pvalue = malaria_sf$local_moran_p,
+  LISA_Cluster = malaria_sf$lisa_cluster,
+  GiStar = malaria_sf$gi_star,
+  GiStar_pvalue = malaria_sf$gi_pvalue,
+  Hotspot_Category = malaria_sf$hotspot_cat
+)
+
+# Print the first few rows
+head(comparison_df)
+
+# Check agreement between Local Moran's I and Gi*
+# For simplicity, we'll classify districts as hotspot, coldspot, or neither
+comparison_df$moran_hotspot <- ifelse(comparison_df$LISA_Cluster == "High-High", "Hotspot",
+                                    ifelse(comparison_df$LISA_Cluster == "Low-Low", "Coldspot", "Neither"))
+
+comparison_df$gistar_hotspot <- ifelse(comparison_df$GiStar > 0 & comparison_df$GiStar_pvalue < 0.05, "Hotspot",
+                                     ifelse(comparison_df$GiStar < 0 & comparison_df$GiStar_pvalue < 0.05, "Coldspot", "Neither"))
+
+# Create a confusion matrix
+confusion_matrix <- table(LocalMoran = comparison_df$moran_hotspot, 
+                        GiStar = comparison_df$gistar_hotspot)
+print(confusion_matrix)
+
+# Calculate percentage agreement
+agreement <- sum(diag(confusion_matrix)) / sum(confusion_matrix) * 100
+cat("Agreement between Local Moran's I and Getis-Ord Gi*:", round(agreement, 1), "%\n")
+
+# Visualize both methods side by side
+side_by_side <- malaria_sf %>%
+  select(geometry, incidence, lisa_cluster, hotspot_cat) %>%
+  gather(key = "method", value = "classification", lisa_cluster, hotspot_cat)
+
+# Create a new column for colors
+side_by_side$color <- NA
+# LISA colors
+side_by_side$color[side_by_side$method == "lisa_cluster" & side_by_side$classification == "High-High"] <- "red"
+side_by_side$color[side_by_side$method == "lisa_cluster" & side_by_side$classification == "Low-Low"] <- "blue"
+side_by_side$color[side_by_side$method == "lisa_cluster" & side_by_side$classification == "High-Low"] <- "pink"
+side_by_side$color[side_by_side$method == "lisa_cluster" & side_by_side$classification == "Low-High"] <- "lightblue"
+side_by_side$color[side_by_side$method == "lisa_cluster" & side_by_side$classification == "Not Significant"] <- "white"
+
+# Gi* colors
+side_by_side$color[side_by_side$method == "hotspot_cat" & side_by_side$classification == "High (99% confidence)"] <- "#d7191c"
+side_by_side$color[side_by_side$method == "hotspot_cat" & side_by_side$classification == "High (95% confidence)"] <- "#fdae61"
+side_by_side$color[side_by_side$method == "hotspot_cat" & side_by_side$classification == "High (90% confidence)"] <- "#ffffbf"
+side_by_side$color[side_by_side$method == "hotspot_cat" & side_by_side$classification == "Not Significant"] <- "#ffffff"
+side_by_side$color[side_by_side$method == "hotspot_cat" & side_by_side$classification == "Low (90% confidence)"] <- "#abd9e9"
+side_by_side$color[side_by_side$method == "hotspot_cat" & side_by_side$classification == "Low (95% confidence)"] <- "#2c7bb6"
+side_by_side$color[side_by_side$method == "hotspot_cat" & side_by_side$classification == "Low (99% confidence)"] <- "#053061"
+
+# Plot the side-by-side comparison
+ggplot(side_by_side) +
+  geom_sf(aes(fill = classification)) +
+  facet_wrap(~ method, labeller = labeller(method = c(lisa_cluster = "Local Moran's I",
+                                                    hotspot_cat = "Getis-Ord Gi*"))) +
+  scale_fill_manual(values = unique(side_by_side$color[!is.na(side_by_side$color)])) +
+  labs(
+    title = "Comparison of Local Moran's I and Getis-Ord Gi*",
+    subtitle = "Identifying malaria hotspots and coldspots",
+    fill = "Classification"
+  ) +
+  theme_minimal()
+            </code></pre>
+        </div>
+        
+        <div class="explanation">
+            <h4>🔍 Explanation:</h4>
+            <p>✔ The Getis-Ord Gi* statistic specifically identifies hotspots and coldspots<br>
+            ✔ Positive Gi* values indicate clustering of high values (hotspots)<br>
+            ✔ Negative Gi* values indicate clustering of low values (coldspots)<br>
+            ✔ Statistical significance is determined using z-scores and p-values<br>
+            ✔ Hotspots with different confidence levels (90%, 95%, 99%) can be identified</p>
+        </div>
+        
+        <hr>
+        
+        <h3>Step 4: Temporal Hotspot Analysis and Applications</h3>
+        <div class="r-code">
+            <pre><code>
+# Temporal hotspot analysis
+# This requires data for multiple time periods
+# Let's assume we have data for several years
+
+# Check if we have temporal data available
+has_time_data <- FALSE
+
+if("year" %in% names(malaria_sf) && length(unique(malaria_sf$year)) > 1) {
+  has_time_data <- TRUE
+  # Analyze how hotspots change over time
+  years <- sort(unique(malaria_sf$year))
+  
+  # Create a list to store yearly hotspot results
+  yearly_hotspots <- list()
+  
+  for(yr in years) {
+    # Subset data for the current year
+    year_data <- malaria_sf %>% filter(year == yr)
+    
+    # Create neighbors based on the full dataset to keep consistent relationships
+    # Create weights matrix for the year
+    year_nb <- nb
+    year_listw <- nb2listw(year_nb, style = "W")
+    
+    # Calculate Gi* for the year
+    year_gi <- localG(year_data$incidence, year_listw)
+    
+    # Add results to the data
+    year_data$gi_star <- as.numeric(year_gi)
+    year_data$gi_pvalue <- 2 * (1 - pnorm(abs(year_gi)))
+    
+    # Classify hotspots
+    year_data$hotspot_cat <- NA
+    # Hotspots
+    year_data$hotspot_cat[year_data$gi_star > 0 & year_data$gi_pvalue < 0.05] <- "Hotspot"
+    # Coldspots
+    year_data$hotspot_cat[year_data$gi_star < 0 & year_data$gi_pvalue < 0.05] <- "Coldspot"
+    # Not significant
+    year_data$hotspot_cat[year_data$gi_pvalue >= 0.05 | is.na(year_data$gi_pvalue)] <- "Not Significant"
+    
+    # Store results
+    yearly_hotspots[[as.character(yr)]] <- year_data
+  }
+  
+  # Create panels showing hotspot evolution over time
+  hotspot_panels <- do.call(rbind, yearly_hotspots)
+  
+  # Plot temporal hotspots
+  ggplot(hotspot_panels) +
+    geom_sf(aes(fill = hotspot_cat)) +
+    scale_fill_manual(values = c("Hotspot" = "red", "Coldspot" = "blue", 
+                               "Not Significant" = "white")) +
+    facet_wrap(~ year) +
+    labs(
+      title = "Temporal Evolution of Malaria Hotspots",
+      subtitle = "Red = hotspots, Blue = coldspots",
+      fill = "Classification"
+    ) +
+    theme_minimal()
+  
+  # Track persistent hotspots
+  # Identify districts that are hotspots in multiple years
+  hotspot_years <- data.frame(
+    District = 1:nrow(malaria_sf),
+    district_name = if("name" %in% names(malaria_sf)) malaria_sf$name else paste("District", 1:nrow(malaria_sf)),
+    total_years = length(years),
+    hotspot_years = 0,
+    coldspot_years = 0
+  )
+  
+  for(yr in years) {
+    year_data <- yearly_hotspots[[as.character(yr)]]
+    hotspot_years$hotspot_years <- hotspot_years$hotspot_years + 
+      (year_data$hotspot_cat == "Hotspot")
+    hotspot_years$coldspot_years <- hotspot_years$coldspot_years + 
+      (year_data$hotspot_cat == "Coldspot")
+  }
+  
+  # Calculate persistence indicators
+  hotspot_years$hotspot_persistence <- hotspot_years$hotspot_years / hotspot_years$total_years
+  hotspot_years$coldspot_persistence <- hotspot_years$coldspot_years / hotspot_years$total_years
+  
+  # Add persistence indicators to the original data
+  malaria_sf$hotspot_persistence <- hotspot_years$hotspot_persistence
+  malaria_sf$coldspot_persistence <- hotspot_years$coldspot_persistence
+  
+  # Classify persistence
+  malaria_sf$persistence_cat <- "Not Persistent"
+  malaria_sf$persistence_cat[malaria_sf$hotspot_persistence >= 0.75] <- "Persistent Hotspot"
+  malaria_sf$persistence_cat[malaria_sf$hotspot_persistence >= 0.5 & 
+                            malaria_sf$hotspot_persistence < 0.75] <- "Semi-Persistent Hotspot"
+  malaria_sf$persistence_cat[malaria_sf$coldspot_persistence >= 0.75] <- "Persistent Coldspot"
+  malaria_sf$persistence_cat[malaria_sf$coldspot_persistence >= 0.5 & 
+                            malaria_sf$coldspot_persistence < 0.75] <- "Semi-Persistent Coldspot"
+  
+  # Map of persistence
+  ggplot(malaria_sf) +
+    geom_sf(aes(fill = persistence_cat)) +
+    scale_fill_manual(values = c("Persistent Hotspot" = "red", 
+                               "Semi-Persistent Hotspot" = "orange",
+                               "Persistent Coldspot" = "blue", 
+                               "Semi-Persistent Coldspot" = "lightblue",
+                               "Not Persistent" = "white")) +
+    labs(
+      title = "Persistence of Malaria Hotspots Over Time",
+      subtitle = "Districts that consistently appear as hotspots across years",
+      fill = "Persistence Category"
+    ) +
+    theme_minimal()
+}
+
+# If we don't have time series data, proceed with spatial hotspot application
+# Prioritizing intervention areas based on hotspot analysis
+
+# Create an intervention priority index
+malaria_sf$priority_score <- NA
+
+# If we have temporal data, use persistence as a factor
+if(has_time_data) {
+  # Weight based on hotspot persistence and current incidence
+  malaria_sf$priority_score <- scale(malaria_sf$hotspot_persistence)[,1] * 0.7 + 
+                             scale(malaria_sf$incidence)[,1] * 0.3
+} else {
+  # Weight based on Gi* z-score and incidence
+  malaria_sf$priority_score <- scale(malaria_sf$gi_star)[,1] * 0.6 + 
+                             scale(malaria_sf$incidence)[,1] * 0.4
+}
+
+# Classify into priority levels
+malaria_sf$priority_level <- cut(malaria_sf$priority_score, 
+                               breaks = c(-Inf, -0.5, 0.5, 1.5, Inf),
+                               labels = c("Low", "Medium", "High", "Very High"))
+
+# Map the intervention priorities
+ggplot(malaria_sf) +
+  geom_sf(aes(fill = priority_level)) +
+  scale_fill_manual(values = c("Low" = "#1a9641", "Medium" = "#a6d96a", 
+                             "High" = "#fdae61", "Very High" = "#d7191c")) +
+  labs(
+    title = "Malaria Intervention Priority Areas",
+    subtitle = "Based on hotspot analysis and incidence levels",
+    fill = "Priority Level"
+  ) +
+  theme_minimal()
+
+# Calculate population at risk in each priority level
+if("population" %in% names(malaria_sf)) {
+  priority_pop <- malaria_sf %>%
+    st_drop_geometry() %>%
+    group_by(priority_level) %>%
+    summarize(
+      districts = n(),
+      total_population = sum(population, na.rm = TRUE),
+      total_cases = sum(incidence * population / 1000, na.rm = TRUE),  # Assuming incidence per 1000
+      percent_population = round(sum(population, na.rm = TRUE) / 
+                                sum(malaria_sf$population, na.rm = TRUE) * 100, 1)
+    )
+  
+  print(priority_pop)
+  
+  # Calculate resource needs based on intervention type and population
+  # Example: bed nets for high and very high priority areas
+  bed_nets_needed <- sum(malaria_sf$population[malaria_sf$priority_level %in% c("High", "Very High")]) * 1.8 / 1000  # 1.8 nets per person
+  
+  cat("Estimated bed nets needed (thousands):", round(bed_nets_needed, 1), "\n")
+  
+  # Chart showing population by priority level
+  ggplot(priority_pop, aes(x = priority_level, y = total_population/1000000, fill = priority_level)) +
+    geom_bar(stat = "identity") +
+    geom_text(aes(label = paste0(percent_population, "%")), vjust = -0.5) +
+    scale_fill_manual(values = c("Low" = "#1a9641", "Medium" = "#a6d96a", 
+                               "High" = "#fdae61", "Very High" = "#d7191c")) +
+    labs(
+      title = "Population by Intervention Priority Level",
+      subtitle = "Numbers show percentage of total population",
+      x = "Priority Level",
+      y = "Population (millions)"
+    ) +
+    theme_minimal()
+}
+            </code></pre>
+        </div>
+        
+        <div class="explanation">
+            <h4>🔍 Explanation:</h4>
+            <p>✔ Temporal hotspot analysis tracks how malaria clusters change over time<br>
+            ✔ Persistent hotspots are areas that consistently show high incidence<br>
+            ✔ Priority indices combine multiple factors (hotspot status, persistence, incidence)<br>
+            ✔ Resource allocation can be optimized by targeting high-priority areas<br>
+            ✔ Population-based metrics help quantify intervention needs</p>
+        </div>
+        
+        <hr>
+        
+        <h2 id="summary">✅ Summary of Week 11</h2>
+        <p>By the end of this week, you should be able to:</p>
+        
+        <h3>Bayesian Analysis</h3>
+        <ul>
+            <li>✔ Understand the fundamentals of Bayesian statistics and its applications to malaria research</li>
+            <li>✔ Build Bayesian regression models using the <code>rstanarm</code> package</li>
+            <li>✔ Interpret posterior distributions, credible intervals, and posterior probabilities</li>
+            <li>✔ Develop hierarchical models that account for regional or district-level differences</li>
+            <li>✔ Use Bayesian predictions for decision-making in malaria control</li>
+        </ul>
+        
+        <h3>Spatial Interpolation</h3>
+        <ul>
+            <li>✔ Understand spatial dependencies in malaria data through variogram analysis</li>
+            <li>✔ Implement ordinary kriging for continuous malaria risk mapping</li>
+            <li>✔ Apply universal kriging to incorporate environmental covariates</li>
+            <li>✔ Evaluate and compare different interpolation methods</li>
+            <li>✔ Create probability maps for risk assessment and planning</li>
+        </ul>
+        
+        <h3>Hotspot Analysis</h3>
+        <ul>
+            <li>✔ Assess global spatial patterns using Moran's I</li>
+            <li>✔ Identify local clusters with LISA (Local Indicators of Spatial Association)</li>
+            <li>✔ Detect hotspots and coldspots using the Getis-Ord Gi* statistic</li>
+            <li>✔ Track the persistence of hotspots over time</li>
+            <li>✔ Apply hotspot analysis to intervention planning and resource allocation</li>
+        </ul>
+        
+        <h3>Next Steps</h3>
+        <p>Now that you've learned Bayesian and spatial analysis techniques for malaria data, you can:</p>
+        <ul>
+            <li>👉 Combine these methods for more comprehensive malaria risk assessments</li>
+            <li>👉 Develop spatiotemporal models to forecast malaria trends</li>
+            <li>👉 Create interactive web maps and dashboards for malaria surveillance</li>
+            <li>👉 Explore more advanced spatial models such as spatial lag or spatial error models</li>
+            <li>👉 Implement these methods in operational malaria control programs</li>
+        </ul>
+        
+        <hr>
+        
+        <h3>Additional Resources</h3>
+        <ul>
+            <li>📚 <a href="https://mc-stan.org/users/documentation/case-studies/icar.html">Spatial Models in Stan</a></li>
+            <li>📚 <a href="https://www.jstatsoft.org/article/view/v063i12">Introduction to gstat</a></li>
+            <li>📚 <a href="https://rspatial.org/analysis/4-geostatistics.html">Spatial Data Science: Geostatistics</a></li>
+            <li>📚 <a href="https://gis.e-education.psu.edu/sites/default/files/capstone/techniques.pdf">GIS and Spatial Statistical Methods for Public Health</a></li>
+            <li>📚 <a href="https://onlinelibrary.wiley.com/doi/10.1111/tmi.12191">Spatial Analysis in Epidemiology of Infectious Diseases</a></li>
+        </ul>
+        
+    </div>
+    
+    <script src="script.js"></script>
+</body>
